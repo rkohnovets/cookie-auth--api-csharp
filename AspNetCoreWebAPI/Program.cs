@@ -1,4 +1,5 @@
 using AspNetCoreWebAPI.Models;
+using AspNetCoreWebAPI.Repositories;
 using Microsoft.AspNetCore.Authentication.Cookies;
 
 //// 1. Add services to the container.
@@ -11,14 +12,8 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// добавляем свой репозиторий пользователей
-// простой, хранит пользователей в памяти и при перезапуске они обнуляются
-// изначально есть пользователь с логином "a" и паролем "a" (латинницей)
-// важно, что добавлен он с помощью AddSingleton, а не AddTransient или AddScoped
-// (хотя хз мб в данном случае поведение и не изменится,
-// так как он получается только в одном контроллере в конструкторе,
-// а не на каждый запрос)
-builder.Services.AddSingleton<UserRepository>();
+// добавляем хранилище пользователей
+builder.Services.AddSingleton<IUserRepository, InMemoryUserRepository>();
 
 // конфигурирование аутентификации - аутентификация с помощью кук (предоставляемая ASP.NET Core)
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme) // или просто "Cookies"
@@ -26,16 +21,18 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
     {
         // без этой настройки не будет работать, если фронт хостится в другом месте
         options.Cookie.SameSite = SameSiteMode.None;
+
         // куки будут HttpOnly - их нельзя будет получить через JavaScript в браузере
         // это типа более безопасно
         options.Cookie.HttpOnly = true;
-        // это хз что
+
+        // точно не знаю что делает, наверное требует,
+        // чтобы аутентификация всегда проводилась через HTTPS, а не HTTP
         options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
 
-        // исправляет ненужный редирект на /Account/Login (обработчика которого и нет)
-        // без этой штуки при неудачной аутентификации все время редиректило на /Account/Login,
-        // а так как обработчика на такой путь нет, то возвращало по итогу код 404 not found.
-        // а с этой штукой при неудачной аутентификации просто возвращает код 401 Not Authorized
+        // без этой штуки при неудачной аутентификации все время редиректило на "/Account/Login",
+        // а так как обработчика на такой путь нет, то возвращало по итогу код 404 (Not Found).
+        // а с этой штукой при неудачной аутентификации просто возвращает код 401 (Not Authorized)
         options.Events.OnRedirectToLogin = (context) =>
         {
             context.Response.StatusCode = 401;
@@ -43,18 +40,21 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         };
     });
 
-// чтобы фронтенд мог общаться с сервером - CORS
-// CORS нужен, так как фронт будет хоститься отдельно от бэка
+// чтобы фронтенд мог общаться с сервером, нужен CORS
+// (CORS нужен, так как фронт будет хоститься отдельно)
+var corsPolicyName = "frontend";
 builder.Services.AddCors(conf =>
 {
-    conf.AddPolicy("forFrontend", policy =>
+    conf.AddPolicy(corsPolicyName, policy =>
     {
         policy.AllowAnyHeader();
         policy.AllowAnyMethod();
         policy.AllowCredentials();
+
         // разрешить получать запросы только из фронтенда
         string whereIsFrontend = "http://localhost:3000";
         policy.WithOrigins(whereIsFrontend);
+
         // так же можно разрешить получать запросы отовсюду (но наверное это небезопасно)
         //policy.SetIsOriginAllowed(origin => true);
     });
@@ -66,7 +66,7 @@ var app = builder.Build();
 //// 3. Configure the HTTP request pipeline.
 
 // устанавливаем сконфигурированную ранее политику CORS
-app.UseCors("forFrontend");
+app.UseCors(corsPolicyName);
 
 // Swagger - при запуске приложения показывает, что есть в API
 if (app.Environment.IsDevelopment())
