@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 using AspNetCoreWebAPI.Repositories;
+using Microsoft.AspNetCore.Authorization;
+using System.Data;
 
 namespace AspNetCoreWebAPI.Controllers;
 
@@ -27,7 +29,13 @@ public class AuthController : ControllerBase
             // что это пользователь с таким то юзернеймом
             await Authenticate(dto.Username);
 
-            return Ok(user);
+            //return Ok(user);
+
+            // лень хэшировать и т.д., но возвращать хотя бы надо без пароля
+            return Ok(new UserDTO { 
+                Username = user.Username, 
+                Password = "" 
+            });
         }
         else return BadRequest("Wrong Username or/and Password");
     }
@@ -41,7 +49,14 @@ public class AuthController : ControllerBase
 
             await Authenticate(user.Username); // аутентификация
 
-            return Ok(user);
+            //return Ok(user);
+
+            // лень хэшировать и т.д., но возвращать хотя бы надо без пароля
+            return Ok(new UserDTO
+            {
+                Username = user.Username,
+                Password = ""
+            });
         } 
         catch (Exception ex)
         {
@@ -73,5 +88,22 @@ public class AuthController : ControllerBase
     {
         await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
         return Ok("Logged Out");
+    }
+
+    [Authorize]
+    [HttpGet("check")]
+    public async Task<IActionResult> CheckAuth()
+    {
+        var claims = HttpContext.User.Claims;
+
+        //return Ok(claims.Select(claim => (type: claim.Type, value: claim.Value) ));
+
+        var claimContainingUsername = claims.First(claim => claim.Type == ClaimTypes.Name);
+
+        return Ok(new UserDTO
+        {
+            Username = claimContainingUsername.Value,
+            Password = ""
+        });
     }
 }

@@ -34,7 +34,7 @@ public class WeatherForecastController : ControllerBase
     }
 
     [Authorize]
-    [HttpGet("check_auth")]
+    [HttpGet("check-auth")]
     public async Task<IActionResult> GetWithAuth()
     {
         await Task.Delay(1);
@@ -42,7 +42,7 @@ public class WeatherForecastController : ControllerBase
     }
 
     [Authorize]
-    [HttpGet("private_weather")]
+    [HttpGet("private-weather")]
     public IEnumerable<WeatherForecast> GetSecretWeather()
     {
         return Enumerable.Range(1, 2)
